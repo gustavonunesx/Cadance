@@ -1,0 +1,4 @@
+# aia-harness
+.claude/settings.local.json
+.claude/*.local.*
+.claude/.aia-harness-pending/
