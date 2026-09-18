@@ -2,3 +2,18 @@
 .claude/settings.local.json
 .claude/*.local.*
 .claude/.aia-harness-pending/
+
+# node / next
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# env
+.env
+.env*.local
+
+# vitest
+coverage/
