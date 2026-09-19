@@ -101,7 +101,9 @@ describe('maxHorizonDays', () => {
       config: { ...DEFAULT_CONFIG, maxHorizonDays: 2 },
     });
 
-    expect(result.blocks.length).toBeGreaterThan(0);
+    // 3 dias disponíveis (D1-D3) × 288 min/dia (48+96+144) = 864.
+    const allocated = result.blocks.reduce((sum, b) => sum + b.minutes, 0);
+    expect(allocated).toBe(864);
     for (const block of result.blocks) {
       expect(block.date <= '2026-08-21').toBe(true);
     }
@@ -120,5 +122,22 @@ describe('maxHorizonDays', () => {
     expect(allocated).toBe(288);
     expect(result.feasible).toBe(false);
     expect(result.infeasibleProjects[0].deficitMinutes).toBe(212);
+  });
+
+  it('esticarPrazoAte nunca fica antes do prazo quando o horizonte trunca o último bloco', () => {
+    // Mesmo cenário acima: horizonte 0 deixa o último bloco em D1
+    // (2026-08-19), bem antes do prazo (2026-12-31). Esticar o prazo para
+    // uma data anterior ao prazo atual não faz sentido — o resultado deve
+    // ficar preso (clamped) no próprio prazo.
+    const result = generateSchedule({
+      today: '2026-08-19',
+      projects: [project('P', '2026-12-31', [task('T', 'P', 500)])],
+      availability: availabilityEveryDay(1, 2, 3),
+      config: { ...DEFAULT_CONFIG, maxHorizonDays: 0 },
+    });
+
+    expect(result.feasible).toBe(false);
+    expect(result.infeasibleProjects[0].deficitMinutes).toBe(212);
+    expect(result.infeasibleProjects[0].options.esticarPrazoAte).toBe('2026-12-31');
   });
 });

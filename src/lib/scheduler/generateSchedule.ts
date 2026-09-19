@@ -75,9 +75,10 @@ function buildResult(
     if (lastDate !== null) projectedCompletion[project.id] = lastDate;
 
     if (project.deadline === null) continue;
+    const deadline = project.deadline;
 
     const afterDeadline = projectBlocks
-      .filter((block) => block.date > project.deadline!)
+      .filter((block) => block.date > deadline)
       .reduce((sum, block) => sum + block.minutes, 0);
 
     // O que nem chegou a ser alocado (horizonte estourado, sem disponibilidade)
@@ -92,9 +93,13 @@ function buildResult(
     if (deficitMinutes <= 0) continue;
 
     // Sem nenhum bloco não há "última data" real — o prazo original é o que
-    // resta de informação honesta.
-    const esticarPrazoAte = lastDate ?? project.deadline;
-    const diasDisponiveis = Math.max(1, daysBetween(today, project.deadline) + 1);
+    // resta de informação honesta. Quando o horizonte (ou a disponibilidade)
+    // trunca o laço antes do prazo, o último bloco pode cair ANTES do prazo —
+    // nesse caso não faz sentido "esticar" para uma data mais cedo que o
+    // prazo atual, então o resultado nunca regride antes dele.
+    const lastMeaningful = lastDate ?? deadline;
+    const esticarPrazoAte = lastMeaningful > deadline ? lastMeaningful : deadline;
+    const diasDisponiveis = Math.max(1, daysBetween(today, deadline) + 1);
 
     infeasibleProjects.push({
       projectId: project.id,
