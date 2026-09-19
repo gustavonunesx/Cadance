@@ -1,4 +1,5 @@
 export { generateSchedule } from './generateSchedule';
+export { preferPeakForHeavy } from './preferPeakForHeavy';
 
 export type {
   Period,
