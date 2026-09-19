@@ -23,7 +23,8 @@ algorithm.
 
 ## Invariants
 
-Every one of these is pure logic and must have a test.
+Every one of these is pure logic and must have a test — except where marked
+deferred, which ships as a signature-only stub with no behavioral test.
 
 1. **Never over-allocate.** No day/period is ever assigned more hours than it
    has available.
@@ -35,7 +36,14 @@ Every one of these is pure logic and must have a test.
    deadline, add hours, or cut scope — instead of an unrealistic plan.
 4. **Replanning looks forward only.** Rebalancing redistributes from today
    onward; past days are never rewritten.
-5. **Heavy tasks in the peak block** when the user has marked a period as peak.
+5. **Heavy tasks in the peak block** — **v2, deferred. Not an MVP invariant.**
+   See `scheduler-spec.md` §9: the MVP fill is chronological and explicitly
+   **ignores** `isPeak` and `difficulty`. Peak matching competes with
+   earliest-deadline-first and, done badly, pushes an urgent task later and
+   breaks a deadline. `preferPeakForHeavy()` ships as a signature-only stub
+   that returns its input unchanged — that identity implementation is the
+   intended MVP behavior, **not a bug to fix**. The user still marks a peak
+   period and the data is stored; it just does not influence distribution yet.
 
 ## Shape
 
@@ -52,4 +60,7 @@ Every one of these is pure logic and must have a test.
   100% without it).
 - An impossible deadline returns the infeasible result, not a plan.
 - Replanning mid-project leaves past days untouched.
-- A peak-marked period receives the heaviest task.
+- `preferPeakForHeavy()` exists and is exported. **Do not** write a test
+  asserting that a peak-marked period receives the heaviest task — that is the
+  deferred v2 behavior (invariant 5), and such a test would fail against the
+  intended MVP stub.
