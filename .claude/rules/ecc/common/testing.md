@@ -1,0 +1,61 @@
+<!-- Vendored from ECC (github.com/affaan-m/ECC) @ ceca28852e5b31edbbf66ebccc8fd163dd14208e :: rules/common/testing.md. MIT (c) Affaan Mustafa. -->
+
+# Testing Requirements
+
+> **Precedence:** `.claude/rules/05-testing.md` wins over this file wherever they
+> disagree. That rule is selective by design — test what can break, skip what can't —
+> so the 80% floor and "all three test types required" mandates below do **not** apply
+> here. Use this file only for the parts `05-testing.md` doesn't cover: the AAA
+> structure and test-naming guidance at the end.
+
+## Minimum Test Coverage: 80%
+
+Test Types (ALL required):
+1. **Unit Tests** - Individual functions, utilities, components
+2. **Integration Tests** - API endpoints, database operations
+3. **E2E Tests** - Critical user flows (framework chosen per language)
+
+## Test-Driven Development
+
+MANDATORY workflow:
+1. Write test first (RED)
+2. Run test - it should FAIL
+3. Write minimal implementation (GREEN)
+4. Run test - it should PASS
+5. Refactor (IMPROVE)
+6. Verify coverage (80%+)
+
+## Troubleshooting Test Failures
+
+1. Use an appropriate specialist agent (check `.claude/agents/`)
+2. Check test isolation
+3. Verify mocks are correct
+4. Fix implementation, not tests (unless tests are wrong)
+
+## Test Structure (AAA Pattern)
+
+Prefer Arrange-Act-Assert structure for tests:
+
+```typescript
+test('calculates similarity correctly', () => {
+  // Arrange
+  const vector1 = [1, 0, 0]
+  const vector2 = [0, 1, 0]
+
+  // Act
+  const similarity = calculateCosineSimilarity(vector1, vector2)
+
+  // Assert
+  expect(similarity).toBe(0)
+})
+```
+
+### Test Naming
+
+Use descriptive names that explain the behavior under test:
+
+```typescript
+test('returns empty array when no markets match query', () => {})
+test('throws error when API key is missing', () => {})
+test('falls back to substring search when Redis is unavailable', () => {})
+```
