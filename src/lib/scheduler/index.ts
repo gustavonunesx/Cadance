@@ -1,3 +1,5 @@
+export { generateSchedule } from './generateSchedule';
+
 export type {
   Period,
   Priority,
