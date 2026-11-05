@@ -1,18 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { generateSchedule, preferPeakForHeavy } from '@/lib/scheduler';
+import {
+  DEFAULT_SCHEDULER_CONFIG,
+  generateSchedule,
+  preferPeakForHeavy,
+} from '@/lib/scheduler';
 import type {
   AvailabilitySlot,
   Project,
   ScheduleBlock,
-  SchedulerConfig,
   Task,
 } from '@/lib/scheduler';
-
-const DEFAULT_CONFIG: SchedulerConfig = {
-  bufferPct: 0.2,
-  minBlockMinutes: 15,
-  maxHorizonDays: 365,
-};
 
 function availabilityEveryDay(manha: number, tarde: number, noite: number): AvailabilitySlot[] {
   const slots: AvailabilitySlot[] = [];
@@ -58,7 +55,7 @@ describe('tarefas sem estimativa (needsClarification)', () => {
         ]),
       ],
       availability: availabilityEveryDay(1, 2, 3),
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     expect(result.blocks.some((b) => b.taskId === 'FLAG')).toBe(false);
@@ -75,7 +72,7 @@ describe('tarefas sem estimativa (needsClarification)', () => {
         ]),
       ],
       availability: availabilityEveryDay(1, 2, 3),
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     const total = result.blocks
@@ -95,7 +92,7 @@ describe('tarefas sem estimativa (needsClarification)', () => {
         ]),
       ],
       availability: availabilityEveryDay(1, 2, 3),
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     expect(result.feasible).toBe(true);
@@ -108,7 +105,7 @@ describe('tarefas sem estimativa (needsClarification)', () => {
       today: '2026-08-19',
       projects: [project('P', null, [task('OK', 'P', 0, 60)])],
       availability: availabilityEveryDay(1, 2, 3),
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(result.unestimatedTasks).toEqual([]);
   });

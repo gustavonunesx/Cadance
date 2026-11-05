@@ -8,7 +8,7 @@
 // A implementação deve exportar `generateSchedule` e os tipos de @/lib/scheduler.
 
 import { describe, it, expect } from 'vitest';
-import { generateSchedule } from '@/lib/scheduler';
+import { DEFAULT_SCHEDULER_CONFIG, generateSchedule } from '@/lib/scheduler';
 import type {
   Period,
   Priority,
@@ -16,19 +16,12 @@ import type {
   Task,
   Project,
   AvailabilitySlot,
-  SchedulerConfig,
   ScheduleBlock,
 } from '@/lib/scheduler';
 
 // ---------------------------------------------------------------------------
 // Helpers de construção (deixam os testes legíveis)
 // ---------------------------------------------------------------------------
-
-const DEFAULT_CONFIG: SchedulerConfig = {
-  bufferPct: 0.2,
-  minBlockMinutes: 15,
-  maxHorizonDays: 365,
-};
 
 /** Mesma disponibilidade em todos os 7 dias da semana. */
 function availabilityEveryDay(
@@ -122,7 +115,7 @@ describe('capacidade efetiva e buffer', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     // Nenhum dia deve ter mais de 96 min à tarde (nunca 120 = 100% das 2h).
@@ -143,7 +136,7 @@ describe('capacidade efetiva e buffer', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     for (const [key, minutes] of minutesByDatePeriod(result.blocks)) {
@@ -165,7 +158,7 @@ describe('divisão de tarefas e ordem do passo a passo', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     // 300 min não cabem num período só -> mais de um bloco.
@@ -186,7 +179,7 @@ describe('divisão de tarefas e ordem do passo a passo', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     const ordered = canonical(result.blocks);
@@ -212,7 +205,7 @@ describe('ordenação de urgência (EDF e desempates)', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     const first = canonical(result.blocks)[0];
@@ -229,7 +222,7 @@ describe('ordenação de urgência (EDF e desempates)', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(canonical(result.blocks)[0].taskId).toBe('TA');
   });
@@ -244,7 +237,7 @@ describe('ordenação de urgência (EDF e desempates)', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(canonical(result.blocks)[0].taskId).toBe('TV');
   });
@@ -259,7 +252,7 @@ describe('ordenação de urgência (EDF e desempates)', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(canonical(result.blocks)[0].taskId).toBe('C');
   });
@@ -283,7 +276,7 @@ describe('guarda anti-sliver', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     // Nenhum bloco de T2 com menos de 15 min (o sliver de 8 não pode existir).
@@ -303,7 +296,7 @@ describe('guarda anti-sliver', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(minutesByTask(result.blocks).get('T')).toBe(12);
   });
@@ -327,7 +320,7 @@ describe('Exemplo A do spec — cabe no prazo', () => {
     today: '2026-08-19',
     projects,
     availability,
-    config: DEFAULT_CONFIG,
+    config: DEFAULT_SCHEDULER_CONFIG,
   });
 
   it('é viável', () => {
@@ -375,7 +368,7 @@ describe('Exemplo B do spec — não cabe no prazo', () => {
     today: '2026-08-19',
     projects,
     availability,
-    config: DEFAULT_CONFIG,
+    config: DEFAULT_SCHEDULER_CONFIG,
   });
 
   it('marca inviável com deficit de 112 min', () => {
@@ -417,7 +410,7 @@ describe('replanejamento', () => {
       today: '2026-08-20',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     // Nenhum bloco de A1 (já concluída).
@@ -435,7 +428,7 @@ describe('replanejamento', () => {
       today,
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     for (const b of result.blocks) {
       expect(b.date >= today).toBe(true);
@@ -457,7 +450,7 @@ describe('casos de borda', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(result.blocks).toHaveLength(0);
     expect(result.feasible).toBe(false);
@@ -473,7 +466,7 @@ describe('casos de borda', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(result.feasible).toBe(false);
     expect(result.infeasibleProjects[0].deficitMinutes).toBe(100);
@@ -490,7 +483,7 @@ describe('casos de borda', () => {
       today: '2026-08-19',
       projects,
       availability,
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(result.blocks.some((b) => b.taskId === 'T')).toBe(false);
   });
