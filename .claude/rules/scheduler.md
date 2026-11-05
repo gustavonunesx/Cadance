@@ -8,8 +8,12 @@ paths: ["src/lib/scheduler/**", "src/lib/ai/**", "tests/**/scheduler/**"]
 
 **The AI estimates. The algorithm distributes. Never invert it.**
 
-- `src/lib/ai/` reads the project `.md`, splits it into tasks, and estimates
-  `estimated_minutes` per task. That is its entire job.
+- `src/lib/md/` parses the project `.md` — deterministic code, no AI. Each `- [ ]`
+  checklist item becomes one task, in file order; the rest of the `.md` is only
+  context for the estimate.
+- `src/lib/ai/` only estimates those already-extracted tasks — `estimated_minutes`,
+  `difficulty`, `needs_clarification` per task. It never extracts, adds, removes or
+  splits tasks. That is its entire job.
 - `src/lib/scheduler/` spreads those minutes across days. Deterministic code
   only — never a prompt, never a model call.
 
@@ -18,7 +22,7 @@ than the user actually has destroys trust in the whole product. Arithmetic is
 the code's responsibility, and the code is covered by tests.
 
 If the easiest path starts looking like "ask the AI to build the schedule",
-that is the rule being violated. Extract with the AI, distribute with the
+that is the rule being violated. Estimate with the AI, distribute with the
 algorithm.
 
 ## Invariants

@@ -93,35 +93,38 @@ NOT self-commit. Untagged or uncertain tasks run serial (no regression). Full pr
 ## Architecture map
 <!-- AI-ENRICH: analyze file tree and key source dirs, describe module responsibilities and relationships, replace this section -->
 
-> **Planned layout — not built yet.** The repo currently holds only this harness
-> and `README.md`. Create directories as each slice lands.
+> **Built so far:** Next.js scaffold (`src/app` placeholder), `src/lib/scheduler/`,
+> `tests/lib/scheduler/`. Everything else below is still planned.
 
 - `src/app/` — App Router, one folder per PRD screen: `hoje` (main), `cronograma`,
   `foco`, `projetos`, `rotina`, `importar`.
 - `src/lib/scheduler/` — ⭐ the distribution algorithm. Pure, deterministic,
   fully tested. Never calls the DB or the AI.
-- `src/lib/ai/` — Claude API calls: parse the `.md`, split into tasks, estimate
-  `estimated_minutes`. Feeds the scheduler; never schedules.
+- `src/lib/md/` — deterministic checklist parser, no AI: each `- [ ]` = one task,
+  in file order; the rest of the `.md` is context for the estimate.
+- `src/lib/ai/` — Claude API, estimation only, Zod-validated (`estimated_minutes`,
+  `difficulty`, `needs_clarification`). Never extracts tasks, never schedules.
 - `src/lib/supabase/` — client + queries.
 - `src/components/` — reusable UI; shadcn primitives stay in `components/ui/`.
 - `src/types/` — shared TypeScript types.
 - `tests/` — Vitest, mirroring `src/`.
 
-Specs at the repo root, read before implementing:
+Specs, read before implementing:
 
 - `PRD_Cadence.md` — what to build (screens, flows, build order).
 - `scheduler-spec.md` — exact algorithm spec for `src/lib/scheduler/`; the tests
   validate against its §11 examples.
-- `generateSchedule.test.ts` — written against that spec; move to
-  `tests/lib/scheduler/` and make it pass (needs the `@` → `src` alias in
-  `vitest.config`).
+- `docs/superpowers/specs/2026-09-16-cadence-pipeline-ia-design.md` — pipeline
+  design (`.md` parser → AI estimation → scheduler); resolves PRD × spec conflicts.
 
 ## Conventions
 <!-- AI-ENRICH: detect project-specific patterns from source files; replace the placeholder below with 4-7 concrete, project-specific conventions. Keep each convention to 1-2 lines; if one needs more detail, move the detail to a path-scoped rule in .claude/rules/ (paths: frontmatter) and keep a one-line pointer here — CLAUDE.md loads every session, rules load lazily. Leave the "## Behavioral guidelines" and "## Engineering rules" sections untouched — those are fixed and must survive enrichment. -->
 
 - ⭐ **GOLDEN RULE — the AI estimates, the algorithm distributes. Never invert it.**
-  Claude API only reads the `.md`, splits it into tasks, and estimates
-  `estimated_minutes`. Spreading hours across days is deterministic code in
+  The AI does not parse or split the `.md`: a deterministic parser in `src/lib/md/`
+  turns each `- [ ]` checklist item into one task. The Claude API (`src/lib/ai/`)
+  only estimates those already-extracted tasks (`estimated_minutes`, `difficulty`,
+  `needs_clarification`). Spreading hours across days is deterministic code in
   `src/lib/scheduler/` — never a prompt. Language models get arithmetic wrong, and
   a schedule that over-allocates destroys trust in the whole app. If "just ask the
   AI to build the schedule" starts looking easiest, **stop** — that is the violation.
@@ -129,7 +132,9 @@ Specs at the repo root, read before implementing:
   `.claude/rules/scheduler.md`): never allocate beyond a day's available hours;
   always keep the 15–20% safety margin; return an explicit *infeasible* result
   (stretch deadline / add hours / cut scope) rather than an unreal plan;
-  replanning only ever moves forward from today; heavy tasks go in a peak block.
+  replanning only ever moves forward from today. Peak-block placement of heavy
+  tasks is **v2, deferred** (`scheduler-spec.md` §9): the `preferPeakForHeavy`
+  stub returns its input — intended, not a bug.
 - **Strict TypeScript, no `any`** — scheduler inputs and outputs fully typed.
   Scheduler functions stay pure: data in, data out, no DB or AI calls inside.
 - **pt-BR for every user-visible string**, including dates and durations
