@@ -68,6 +68,10 @@ describe('effectiveCapacity', () => {
     expect(effectiveCapacity('2026-08-19', 'tarde', availability, 0.2)).toBe(96);
   });
 
+  it('usa o buffer recebido, não um valor fixo (2h de tarde com 15% => 102 min)', () => {
+    expect(effectiveCapacity('2026-08-19', 'tarde', availability, 0.15)).toBe(102);
+  });
+
   it('calcula manhã e noite do exemplo do spec (48 e 144)', () => {
     expect(effectiveCapacity('2026-08-19', 'manha', availability, 0.2)).toBe(48);
     expect(effectiveCapacity('2026-08-19', 'noite', availability, 0.2)).toBe(144);
@@ -83,5 +87,28 @@ describe('effectiveCapacity', () => {
 
   it('devolve 0 quando não há slot para aquele dia/período', () => {
     expect(effectiveCapacity('2026-08-19', 'noite', [], 0.2)).toBe(0);
+  });
+});
+
+describe('effectiveCapacity — escolha do slot', () => {
+  // 2026-08-24 é segunda (1), 25 terça (2), 19 quarta (3).
+  const slots: AvailabilitySlot[] = [
+    { weekday: 1, period: 'tarde', hours: 1, isPeak: false },
+    { weekday: 3, period: 'tarde', hours: 2, isPeak: false },
+    { weekday: 3, period: 'manha', hours: 3, isPeak: false },
+  ];
+
+  it('usa o slot do dia da semana e do período pedidos', () => {
+    expect(effectiveCapacity('2026-08-19', 'tarde', slots, 0.2)).toBe(96);
+    expect(effectiveCapacity('2026-08-19', 'manha', slots, 0.2)).toBe(144);
+    expect(effectiveCapacity('2026-08-24', 'tarde', slots, 0.2)).toBe(48);
+  });
+
+  it('ignora slots de outros dias da semana (terça => 0)', () => {
+    expect(effectiveCapacity('2026-08-25', 'tarde', slots, 0.2)).toBe(0);
+  });
+
+  it('ignora slots de outros períodos do mesmo dia (quarta à noite => 0)', () => {
+    expect(effectiveCapacity('2026-08-19', 'noite', slots, 0.2)).toBe(0);
   });
 });

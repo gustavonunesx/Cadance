@@ -17,6 +17,7 @@ import type {
   Project,
   AvailabilitySlot,
   ScheduleBlock,
+  SchedulerInput,
 } from '@/lib/scheduler';
 
 // ---------------------------------------------------------------------------
@@ -99,6 +100,13 @@ function canonical(blocks: ScheduleBlock[]): ScheduleBlock[] {
   );
 }
 
+/** Congela o valor e tudo que ele contém: qualquer escrita na entrada lança TypeError. */
+function deepFreeze(value: unknown): void {
+  if (typeof value !== 'object' || value === null) return;
+  for (const child of Object.values(value)) deepFreeze(child);
+  Object.freeze(value);
+}
+
 // ---------------------------------------------------------------------------
 // 1. Capacidade efetiva aplica o buffer
 // ---------------------------------------------------------------------------
@@ -118,12 +126,13 @@ describe('capacidade efetiva e buffer', () => {
       config: DEFAULT_SCHEDULER_CONFIG,
     });
 
-    // Nenhum dia deve ter mais de 96 min à tarde (nunca 120 = 100% das 2h).
-    for (const [key, minutes] of minutesByDatePeriod(result.blocks)) {
-      if (key.endsWith('|tarde')) expect(minutes).toBeLessThanOrEqual(96);
-      // manha e noite não existem nesse cenário
-      if (key.endsWith('|manha')) expect(minutes).toBe(0);
-      if (key.endsWith('|noite')) expect(minutes).toBe(0);
+    // 5000 min / 96 = 52 tardes cheias (4992) + 8 min na 53ª (2026-10-10), que
+    // conclui a tarefa. Cada tarde sai em exatamente 96 — nunca 120 (100% das 2h).
+    const used = minutesByDatePeriod(result.blocks);
+    expect(used.size).toBe(53);
+    for (const [key, minutes] of used) {
+      expect(key.endsWith('|tarde')).toBe(true); // manhã e noite não têm capacidade
+      expect(minutes).toBe(key === '2026-10-10|tarde' ? 8 : 96);
     }
   });
 
@@ -139,11 +148,38 @@ describe('capacidade efetiva e buffer', () => {
       config: DEFAULT_SCHEDULER_CONFIG,
     });
 
-    for (const [key, minutes] of minutesByDatePeriod(result.blocks)) {
+    // 4000 min = 13 dias cheios (13 × 288 = 3744) + 256 no 14º dia (48 + 96 + 112):
+    // 14 × 3 períodos, todos na capacidade efetiva exata, menos a última noite.
+    const used = minutesByDatePeriod(result.blocks);
+    expect(used.size).toBe(42);
+    for (const [key, minutes] of used) {
       const period = key.split('|')[1] as Period;
-      expect(minutes).toBeLessThanOrEqual(CAP[period]);
+      expect(minutes).toBe(key === '2026-09-01|noite' ? 112 : CAP[period]);
     }
   });
+
+  it.each([
+    { bufferPct: 0.2, dia1: 96, dia2: 24 },
+    { bufferPct: 0.15, dia1: 102, dia2: 18 },
+  ])(
+    'tarefa de 120 min numa tarde de 2h com folga $bufferPct => $dia1 + $dia2',
+    ({ bufferPct, dia1, dia2 }) => {
+      // Sem a folga, 120 min cairiam em exatamente 100% da tarde de 2h.
+      const availability = availabilityEveryDay(0, 2, 0);
+      const projects = [project('P', null, 'media', [task('T', 'P', 0, 120)])];
+      const result = generateSchedule({
+        today: '2026-08-19',
+        projects,
+        availability,
+        config: { ...DEFAULT_SCHEDULER_CONFIG, bufferPct },
+      });
+
+      expect(canonical(result.blocks)).toEqual([
+        { taskId: 'T', date: '2026-08-19', period: 'tarde', minutes: dia1 },
+        { taskId: 'T', date: '2026-08-20', period: 'tarde', minutes: dia2 },
+      ]);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -388,6 +424,18 @@ describe('Exemplo B do spec — não cabe no prazo', () => {
   it('mesmo inviável, entrega o melhor plano possível (aloca tudo)', () => {
     expect(minutesByTask(result.blocks).get('C1')).toBe(400);
   });
+
+  it('reproduz os blocos do spec e conclui em D2', () => {
+    const expected: ScheduleBlock[] = [
+      { taskId: 'C1', date: '2026-08-19', period: 'manha', minutes: 48 },
+      { taskId: 'C1', date: '2026-08-19', period: 'tarde', minutes: 96 },
+      { taskId: 'C1', date: '2026-08-19', period: 'noite', minutes: 144 },
+      { taskId: 'C1', date: '2026-08-20', period: 'manha', minutes: 48 },
+      { taskId: 'C1', date: '2026-08-20', period: 'tarde', minutes: 64 },
+    ];
+    expect(canonical(result.blocks)).toEqual(canonical(expected));
+    expect(result.projectedCompletion['C']).toBe('2026-08-20');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -430,9 +478,38 @@ describe('replanejamento', () => {
       availability,
       config: DEFAULT_SCHEDULER_CONFIG,
     });
+    // Sem esta checagem o laço abaixo passaria vazio se nenhum bloco fosse gerado.
+    expect(result.blocks).toHaveLength(3);
     for (const b of result.blocks) {
       expect(b.date >= today).toBe(true);
     }
+  });
+
+  it('com progresso parcial, aloca só o restante a partir de hoje', () => {
+    // 120 estimados - 45 feitos = 75 restantes; a manhã rende 48 por dia.
+    const availability = availabilityEveryDay(1, 0, 0);
+    const projects = [
+      project(
+        'P',
+        '2026-08-31',
+        'alta',
+        [task('T', 'P', 0, 120, { actualMinutes: 45 })],
+        '2026-08-01',
+      ),
+    ];
+    const result = generateSchedule({
+      today: '2026-08-20',
+      projects,
+      availability,
+      config: DEFAULT_SCHEDULER_CONFIG,
+    });
+
+    expect(canonical(result.blocks)).toEqual([
+      { taskId: 'T', date: '2026-08-20', period: 'manha', minutes: 48 },
+      { taskId: 'T', date: '2026-08-21', period: 'manha', minutes: 27 },
+    ]);
+    expect(minutesByTask(result.blocks).get('T')).toBe(75);
+    expect(result.projectedCompletion['P']).toBe('2026-08-21');
   });
 });
 
@@ -455,6 +532,21 @@ describe('casos de borda', () => {
     expect(result.blocks).toHaveLength(0);
     expect(result.feasible).toBe(false);
     expect(result.infeasibleProjects[0].deficitMinutes).toBe(60);
+  });
+
+  it('sem prazo e sem disponibilidade: plano vazio, viável e sem data de término', () => {
+    const availability: AvailabilitySlot[] = [];
+    const projects = [project('P', null, 'media', [task('T', 'P', 0, 60)])];
+    const result = generateSchedule({
+      today: '2026-08-19',
+      projects,
+      availability,
+      config: DEFAULT_SCHEDULER_CONFIG,
+    });
+    expect(result.blocks).toEqual([]);
+    expect(result.feasible).toBe(true);
+    expect(result.infeasibleProjects).toEqual([]);
+    expect(result.projectedCompletion).toEqual({});
   });
 
   it('prazo no passado: imediatamente inviável com deficit = total', () => {
@@ -486,5 +578,63 @@ describe('casos de borda', () => {
       config: DEFAULT_SCHEDULER_CONFIG,
     });
     expect(result.blocks.some((b) => b.taskId === 'T')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Disponibilidade só em alguns dias da semana
+// ---------------------------------------------------------------------------
+
+describe('disponibilidade em dias da semana alternados', () => {
+  it('hoje é sexta sem disponibilidade: o primeiro bloco cai na próxima segunda e nenhum em dia excluído', () => {
+    // Só segunda (1) e quarta (3), 48 min cada manhã. 2026-08-21 é sexta (5).
+    const availability = availabilityEveryDay(1, 0, 0).filter(
+      (slot) => slot.weekday === 1 || slot.weekday === 3,
+    );
+    const projects = [project('P', null, 'media', [task('T', 'P', 0, 100)])];
+    const result = generateSchedule({
+      today: '2026-08-21',
+      projects,
+      availability,
+      config: DEFAULT_SCHEDULER_CONFIG,
+    });
+
+    expect(canonical(result.blocks)).toEqual([
+      { taskId: 'T', date: '2026-08-24', period: 'manha', minutes: 48 }, // segunda
+      { taskId: 'T', date: '2026-08-26', period: 'manha', minutes: 48 }, // quarta
+      { taskId: 'T', date: '2026-08-31', period: 'manha', minutes: 4 }, // segunda (4 < 15, mas conclui)
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. A entrada nunca é mutada (spec §1 e §5)
+// ---------------------------------------------------------------------------
+
+describe('imutabilidade da entrada', () => {
+  it('roda com a entrada congelada em profundidade e a deixa idêntica', () => {
+    // Cobre os caminhos de alocação, tarefa concluída e inviabilidade (C estoura o prazo).
+    const input: SchedulerInput = {
+      today: '2026-08-19',
+      projects: [
+        project('A', '2026-08-21', 'alta', [
+          task('A1', 'A', 0, 180, { actualMinutes: 30 }),
+          task('A2', 'A', 1, 120),
+        ]),
+        project('B', null, 'media', [
+          task('B1', 'B', 0, 40, { actualMinutes: 40, done: true }),
+          task('B2', 'B', 1, 90),
+        ]),
+        project('C', '2026-08-19', 'baixa', [task('C1', 'C', 0, 500)]),
+      ],
+      availability: availabilityEveryDay(1, 2, 3),
+      // Cópia: congelar a entrada não pode congelar a constante compartilhada.
+      config: { ...DEFAULT_SCHEDULER_CONFIG },
+    };
+    const before = structuredClone(input);
+    deepFreeze(input);
+
+    expect(() => generateSchedule(input)).not.toThrow();
+    expect(input).toEqual(before);
   });
 });

@@ -80,6 +80,28 @@ describe('adicionarMinutosPorDia arredonda para cima', () => {
   });
 });
 
+describe('adicionarMinutosPorDia com prazo vencido', () => {
+  // diasDisponiveis = max(1, diasEntre(hoje, prazo) + 1): prazo ontem => max(1, 0),
+  // há 9 dias => max(1, -8); ambos 1. Sem o max: ceil(100/0) = Infinity e ceil(100/-8) = -12.
+  it.each([
+    { quando: 'ontem', deadline: '2026-08-18' },
+    { quando: 'há 9 dias', deadline: '2026-08-10' },
+  ])('prazo $quando: o aporte diário é o deficit inteiro, nunca Infinity nem negativo', ({ deadline }) => {
+    const result = generateSchedule({
+      today: '2026-08-19',
+      projects: [project('P', deadline, [task('T', 'P', 100)])],
+      availability: availabilityEveryDay(1, 2, 3),
+      config: DEFAULT_SCHEDULER_CONFIG,
+    });
+
+    expect(result.infeasibleProjects).toHaveLength(1);
+    const { deficitMinutes, options } = result.infeasibleProjects[0];
+    expect(deficitMinutes).toBe(100);
+    expect(options.adicionarMinutosPorDia).toBe(100);
+    expect(options.cortarEscopoMinutos).toBe(100);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // maxHorizonDays
 // ---------------------------------------------------------------------------
