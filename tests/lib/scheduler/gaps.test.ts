@@ -1,17 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { generateSchedule } from '@/lib/scheduler';
+import { DEFAULT_SCHEDULER_CONFIG, generateSchedule } from '@/lib/scheduler';
 import type {
   AvailabilitySlot,
   Project,
-  SchedulerConfig,
   Task,
 } from '@/lib/scheduler';
-
-const DEFAULT_CONFIG: SchedulerConfig = {
-  bufferPct: 0.2,
-  minBlockMinutes: 15,
-  maxHorizonDays: 365,
-};
 
 function availabilityEveryDay(manha: number, tarde: number, noite: number): AvailabilitySlot[] {
   const slots: AvailabilitySlot[] = [];
@@ -50,7 +43,7 @@ describe('§10.7 — prazo exatamente no limite', () => {
       today: '2026-08-19',
       projects: [project('P', '2026-08-20', [task('T', 'P', 96)])],
       availability: availabilityEveryDay(1, 0, 0),
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     expect(result.feasible).toBe(true);
@@ -77,13 +70,35 @@ describe('adicionarMinutosPorDia arredonda para cima', () => {
       today: '2026-08-19',
       projects: [project('P', '2026-08-21', [task('T', 'P', 200)])],
       availability: availabilityEveryDay(1, 0, 0),
-      config: DEFAULT_CONFIG,
+      config: DEFAULT_SCHEDULER_CONFIG,
     });
 
     expect(result.feasible).toBe(false);
     const infeasible = result.infeasibleProjects[0];
     expect(infeasible.deficitMinutes).toBe(56);
     expect(infeasible.options.adicionarMinutosPorDia).toBe(19);
+  });
+});
+
+describe('adicionarMinutosPorDia com prazo vencido', () => {
+  // diasDisponiveis = max(1, diasEntre(hoje, prazo) + 1): prazo ontem => max(1, 0),
+  // há 9 dias => max(1, -8); ambos 1. Sem o max: ceil(100/0) = Infinity e ceil(100/-8) = -12.
+  it.each([
+    { quando: 'ontem', deadline: '2026-08-18' },
+    { quando: 'há 9 dias', deadline: '2026-08-10' },
+  ])('prazo $quando: o aporte diário é o deficit inteiro, nunca Infinity nem negativo', ({ deadline }) => {
+    const result = generateSchedule({
+      today: '2026-08-19',
+      projects: [project('P', deadline, [task('T', 'P', 100)])],
+      availability: availabilityEveryDay(1, 2, 3),
+      config: DEFAULT_SCHEDULER_CONFIG,
+    });
+
+    expect(result.infeasibleProjects).toHaveLength(1);
+    const { deficitMinutes, options } = result.infeasibleProjects[0];
+    expect(deficitMinutes).toBe(100);
+    expect(options.adicionarMinutosPorDia).toBe(100);
+    expect(options.cortarEscopoMinutos).toBe(100);
   });
 });
 
@@ -98,7 +113,7 @@ describe('maxHorizonDays', () => {
       today: '2026-08-19',
       projects: [project('P', null, [task('T', 'P', 100000)])],
       availability: availabilityEveryDay(1, 2, 3),
-      config: { ...DEFAULT_CONFIG, maxHorizonDays: 2 },
+      config: { ...DEFAULT_SCHEDULER_CONFIG, maxHorizonDays: 2 },
     });
 
     // 3 dias disponíveis (D1-D3) × 288 min/dia (48+96+144) = 864.
@@ -115,7 +130,7 @@ describe('maxHorizonDays', () => {
       today: '2026-08-19',
       projects: [project('P', '2026-12-31', [task('T', 'P', 500)])],
       availability: availabilityEveryDay(1, 2, 3),
-      config: { ...DEFAULT_CONFIG, maxHorizonDays: 0 },
+      config: { ...DEFAULT_SCHEDULER_CONFIG, maxHorizonDays: 0 },
     });
 
     const allocated = result.blocks.reduce((sum, b) => sum + b.minutes, 0);
@@ -133,7 +148,7 @@ describe('maxHorizonDays', () => {
       today: '2026-08-19',
       projects: [project('P', '2026-12-31', [task('T', 'P', 500)])],
       availability: availabilityEveryDay(1, 2, 3),
-      config: { ...DEFAULT_CONFIG, maxHorizonDays: 0 },
+      config: { ...DEFAULT_SCHEDULER_CONFIG, maxHorizonDays: 0 },
     });
 
     expect(result.feasible).toBe(false);

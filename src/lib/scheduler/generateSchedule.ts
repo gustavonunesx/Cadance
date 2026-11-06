@@ -1,5 +1,6 @@
 import { PERIODS, addDays, daysBetween, effectiveCapacity } from './capacity';
 import {
+  isEligible,
   nextReadyTask,
   remainingMinutes,
   type TaskProgress,
@@ -82,12 +83,13 @@ function buildResult(
       .reduce((sum, block) => sum + block.minutes, 0);
 
     // O que nem chegou a ser alocado (horizonte estourado, sem disponibilidade)
-    // também é deficit. Tarefas flagueadas são excluídas — sem estimativa, não
-    // há número honesto para contar (pipeline-spec §4.4).
-    const neverAllocated = project.tasks.reduce((sum, task) => {
-      if (task.needsClarification) return sum;
-      return sum + remainingMinutes(task, progress);
-    }, 0);
+    // também é deficit. Só conta o que o laço ainda poderia alocar (isEligible):
+    // tarefas concluídas — mesmo antes do estimado (scheduler-spec §4.2) — e
+    // flagueadas — sem estimativa, não há número honesto (pipeline-spec §4.4) —
+    // ficam de fora.
+    const neverAllocated = project.tasks
+      .filter((task) => isEligible(task, progress))
+      .reduce((sum, task) => sum + remainingMinutes(task, progress), 0);
 
     const deficitMinutes = afterDeadline + neverAllocated;
     if (deficitMinutes <= 0) continue;

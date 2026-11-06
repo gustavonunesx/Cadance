@@ -1,3 +1,4 @@
+export { DEFAULT_SCHEDULER_CONFIG } from './config';
 export { generateSchedule } from './generateSchedule';
 export { preferPeakForHeavy } from './preferPeakForHeavy';
 
